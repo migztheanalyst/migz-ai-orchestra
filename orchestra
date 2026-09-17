@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PYTHONPATH="$ROOT/conductor${PYTHONPATH:+:$PYTHONPATH}"
+
+usage() {
+  cat <<'EOF'
+MIGZ AI Orchestra
+
+Usage: ./orchestra <command> [args]
+
+Commands:
+  setup [args]         Prepare local runtime and models
+  doctor [--probe]     Check core readiness and optional integrations
+  status               Show task and scheduler status
+  create [args]        Create a task (same args as task_engine.py create)
+  run-next              Execute the next pending task
+  preflight             Run bounded live local-model probes
+  release-check [--live] Run deterministic release gate
+  war-room [args]      Render recent local War Room events
+  help                  Show this help
+EOF
+}
+
+command="${1:-help}"
+shift || true
+case "$command" in
+  setup) exec "$ROOT/scripts/setup.sh" "$@" ;;
+  doctor) exec python3 "$ROOT/conductor/orchestra_doctor.py" --repo "$ROOT" "$@" ;;
+  status) exec python3 "$ROOT/conductor/orchestra.py" "$ROOT" status "$@" ;;
+  create) exec python3 "$ROOT/conductor/task_engine.py" create "$@" ;;
+  run-next|run) exec python3 "$ROOT/conductor/orchestra.py" "$ROOT" run-next "$@" ;;
+  preflight) exec python3 "$ROOT/conductor/provider_preflight.py" "$@" ;;
+  release-check) exec python3 "$ROOT/conductor/release_reviewer.py" "$ROOT" "$@" ;;
+  war-room) exec python3 "$ROOT/conductor/war_room.py" "$ROOT" "$@" ;;
+  help|-h|--help) usage ;;
+  *) echo "Unknown command: $command" >&2; usage >&2; exit 2 ;;
+esac

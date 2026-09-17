@@ -1,0 +1,34 @@
+name: Integration request
+description: Propose a new agent, model, backend, provider, or external integration
+title: "[Integration]: "
+labels: ["integration"]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Integration name
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Type
+      options: [Coding backend, Advisory agent, Decision layer, Local model, Control surface, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: value
+    attributes:
+      label: Why it belongs in Orchestra
+    validations:
+      required: true
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Runtime requirements
+      description: Install steps, credentials, network access, models, licenses, or paid dependencies.
+  - type: textarea
+    id: safety
+    attributes:
+      label: Security and failure model
+      description: Permissions, writable scope, timeout behavior, fallback, and secret handling.

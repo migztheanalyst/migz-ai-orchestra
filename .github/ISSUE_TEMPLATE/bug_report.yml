@@ -1,0 +1,40 @@
+name: Bug report
+description: Report a reproducible Orchestra defect
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping make Orchestra more reliable. Please remove secrets and personal data from logs.
+  - type: input
+    id: version
+    attributes:
+      label: Orchestra version / commit
+      placeholder: v4.0.0 or git SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Environment
+      options: [Linux, macOS, Windows, WSL2, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and reproduction steps
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Sanitized doctor output
+      description: Paste ./orchestra doctor output. Remove anything sensitive first.
+      render: shell
