@@ -175,6 +175,19 @@ class TaskStore:
 
         return task
 
+    def remove_pending(self, task_id):
+        """Remove only an unclaimed pending task, primarily for enqueue rollback."""
+        self._validate_id(task_id)
+        with self._locked():
+            path = self._path("pending", task_id)
+            if not path.exists():
+                raise FileNotFoundError("Pending task not found")
+            task = json.loads(path.read_text(encoding="utf-8"))
+            if task.get("status") != "pending" or task.get("owner_pid") is not None:
+                raise ValueError("Only an unclaimed pending task can be removed")
+            path.unlink()
+            return task
+
     def find(self, task_id):
         self._validate_id(task_id)
 
@@ -279,10 +292,26 @@ class TaskStore:
                         alive = False
                 if not alive:
                     try:
-                        repaired.append(self.transition(task["id"], "pending", "stale active task recovered after restart"))
+                        exhausted = int(task.get("attempts", 0)) >= int(task.get("max_attempts", 3))
+                        destination = "blocked" if exhausted else "pending"
+                        note = (
+                            "stale active task blocked because maximum attempts were reached"
+                            if exhausted
+                            else "stale active task recovered after restart"
+                        )
+                        repaired.append(self.transition(task["id"], destination, note))
                     except (FileNotFoundError, ValueError):
                         pass
         return repaired
+
+    def active_ids(self):
+        """Return task IDs that remain actively owned after stale repair."""
+        active = set()
+        for status in ("running", "review"):
+            for path in (self.root / status).glob("*.json"):
+                task = json.loads(path.read_text(encoding="utf-8"))
+                active.add(task["id"])
+        return active
 
     def next_pending(self):
         candidates = []

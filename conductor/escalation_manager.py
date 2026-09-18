@@ -1,10 +1,10 @@
 import json
-import subprocess
 import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from process_runner import run_bounded
 from task_engine import TaskStore
 
 
@@ -16,13 +16,10 @@ def validate_task_id(task_id):
 
 
 def git(repo, *args):
-    result = subprocess.run(
+    result = run_bounded(
         ["git", *args],
         cwd=repo,
-        capture_output=True,
-        text=True,
         timeout=60,
-        shell=False,
     )
 
     return result.stdout.strip()

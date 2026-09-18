@@ -23,7 +23,7 @@ class OpenHandsBackendTests(unittest.TestCase):
     def test_probe_records_pass_and_promotes_health(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp); r=self.make_router(root)
-            with mock.patch('agent_backend_router.subprocess.run',return_value=Completed()):
+            with mock.patch('agent_backend_router.run_bounded',return_value=Completed()):
                 result=r.bounded_openhands_probe(timeout=1)
             self.assertEqual(result['status'],HEALTHY)
             data=json.loads((root/'evidence/core-final-closure/openhands-canary.json').read_text())

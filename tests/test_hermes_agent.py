@@ -28,7 +28,7 @@ class HermesActivationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             router = self.make_router(root)
-            with mock.patch("agent_backend_router.subprocess.run", return_value=Completed()) as run:
+            with mock.patch("agent_backend_router.run_bounded", return_value=Completed()) as run:
                 result = router.bounded_hermes_probe(timeout=1)
             self.assertEqual(result["status"], HEALTHY)
             command = run.call_args.args[0]
@@ -61,7 +61,7 @@ class HermesActivationTests(unittest.TestCase):
             evidence = root / "evidence" / "core-final-closure"
             evidence.mkdir(parents=True, exist_ok=True)
             (evidence / "hermes-final-probe.json").write_text(json.dumps({"state": "PASSED", "model": "qwen3.5:4b"}))
-            with mock.patch("agent_backend_router.subprocess.run", return_value=Completed(stdout="Useful advisory\n")):
+            with mock.patch("agent_backend_router.run_bounded", return_value=Completed(stdout="Useful advisory\n")):
                 result = router.run_hermes_advisory("test", timeout=1)
             self.assertEqual(result["response"], "Useful advisory")
             self.assertEqual(result["status"], HEALTHY)

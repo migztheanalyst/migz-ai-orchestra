@@ -1,33 +1,13 @@
 import json
-import os
-import subprocess
 import sys
 import urllib.request
 
 from model_router import route_model
-
-
-def get_windows_gateway():
-    result = subprocess.check_output(
-        ["ip", "route", "show", "default"],
-        text=True
-    ).strip()
-
-    parts = result.split()
-
-    if "via" not in parts:
-        raise RuntimeError("Could not detect Windows gateway")
-
-    return parts[parts.index("via") + 1]
+from runtime_env import resolve_ollama_base
 
 
 def call_ollama(model, prompt):
-    gateway = get_windows_gateway()
-
-    base_url = os.environ.get(
-        "OLLAMA_BASE_URL",
-        f"http://{gateway}:11434"
-    )
+    base_url = resolve_ollama_base()
 
     payload = {
         "model": model,

@@ -1,20 +1,19 @@
-import subprocess
 import sys
-import tempfile
-import time
 import json
 import os
 from pathlib import Path
 
-from evidence_manager import capture_evidence
+from evidence_manager import capture_evidence, finalize_evidence
 from agent_backend_router import AgentBackendRouter, BackendUnavailable
 from decision_layer import DecisionLayer
 from backend_change_guard import inspect_changes, write_report
 from decomposition import bounded_subtasks, should_decompose
 from provider_router import classify_backend_failure
+from process_runner import run_bounded, run_live_bounded
 from war_room_event_bus import EventBus, make_event
 from task_engine import TaskStore
 from project_registry import ProjectRegistry
+from project_orchestrator import enqueue_batch as enqueue_project_batch
 from worktree_manager import (
     create_worktree,
     default_worktree_root,
@@ -23,18 +22,13 @@ from worktree_manager import (
 
 
 def run(workspace, *command):
-    result = subprocess.run(
-        list(command),
+    result = run_bounded(
+        command,
         cwd=workspace,
-        capture_output=True,
-        text=True,
         timeout=1800,
-        shell=False,
     )
 
-    print(
-        "$ " + " ".join(command)
-    )
+    print("$ " + " ".join(command))
 
     if result.stdout:
         print(result.stdout.rstrip())
@@ -47,36 +41,17 @@ def run(workspace, *command):
 
 
 def run_live(workspace, command, heartbeat, env=None, timeout=1800):
-    fd, name = tempfile.mkstemp(prefix="migz-live-", suffix=".log")
-    try:
-        with open(fd, "w") as log:
-            child_env = os.environ.copy()
-            child_env.update(env or {})
-            proc = subprocess.Popen(list(command), cwd=workspace, stdout=log, stderr=subprocess.STDOUT, text=True, shell=False, env=child_env)
-            last = time.monotonic()
-            deadline = last + timeout
-            while proc.poll() is None:
-                now = time.monotonic()
-                if now - last >= 45:
-                    heartbeat()
-                    last = now
-                if now >= deadline:
-                    proc.terminate()
-                    try:
-                        proc.wait(timeout=10)
-                    except subprocess.TimeoutExpired:
-                        proc.kill()
-                        proc.wait(timeout=10)
-                    text = Path(name).read_text(encoding="utf-8", errors="replace")
-                    return subprocess.CompletedProcess(command, 124, text, "bounded backend timeout")
-                time.sleep(1)
-        text = Path(name).read_text(encoding="utf-8", errors="replace")
-        print("$ " + " ".join(command))
-        if text:
-            print(text.rstrip())
-        return subprocess.CompletedProcess(command, proc.returncode, text, "")
-    finally:
-        Path(name).unlink(missing_ok=True)
+    result = run_live_bounded(
+        command,
+        cwd=workspace,
+        heartbeat=heartbeat,
+        env=env,
+        timeout=timeout,
+    )
+    print("$ " + " ".join(command))
+    if result.stdout:
+        print(result.stdout.rstrip())
+    return result
 
 
 def block_task(store, task_id, note):
@@ -281,14 +256,39 @@ def main():
             raise SystemExit(1)
 
         if builder.returncode != 0:
-            if should_decompose(builder.stdout):
+            failure_text = "\n".join(
+                part for part in (builder.stdout, builder.stderr) if part
+            ) or "Builder failed"
+            if should_decompose(failure_text):
                 subtasks = bounded_subtasks(task["title"], task["objective"], task["role"], task_id)
-                created = [store.create(x["title"], x["objective"], x["role"], task.get("max_attempts", 3), project_id=project_id, metadata=x) for x in subtasks]
+                child_specs = []
+                for child in subtasks:
+                    spec = dict(metadata)
+                    spec.update(child)
+                    child_specs.append(spec)
+                if project_id:
+                    created = enqueue_project_batch(
+                        repo,
+                        project_id,
+                        child_specs,
+                        lane=str(metadata.get("lane", "local-heavy")),
+                        max_attempts=task.get("max_attempts", 3),
+                        backend=requested_backend,
+                        allowed_scope=allowed_scope,
+                    )
+                else:
+                    created = [
+                        store.create(
+                            child["title"], child["objective"], child["role"],
+                            task.get("max_attempts", 3), metadata=child,
+                        )
+                        for child in child_specs
+                    ]
                 block_task(store, task_id, f"Builder oversized; decomposed into {len(created)} bounded subtasks")
                 emit("task.retry", "sol", f"Oversized builder output decomposed into {len(created)} bounded subtasks")
                 print(f"DECOMPOSED: {len(created)}")
                 raise SystemExit(1)
-            failure_class = classify_backend_failure(builder.stdout or "Builder failed")
+            failure_class = classify_backend_failure(failure_text)
             block_task(store, task_id, "Builder failed")
             emit("task.blocked", "sol", "Builder failed; task blocked", data={"failure_class": failure_class, "backend": backend_plan.backend})
             print("MAESTRO   : BLOCKED")
@@ -382,6 +382,8 @@ def main():
             raise SystemExit(1)
 
         head = run(workspace, "git", "rev-parse", "HEAD").stdout.strip()
+        finalize_evidence(output, workspace, head)
+        emit("evidence.finalized", "terra", f"Evidence bound to verified commit: {head}")
         emit("commit.complete", "sol", f"Verified commit created: {head}")
 
         store.transition(

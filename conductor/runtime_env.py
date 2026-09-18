@@ -4,9 +4,14 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess
+from subprocess import SubprocessError
 import urllib.request
 from pathlib import Path
+
+try:
+    from .process_runner import run_bounded
+except ImportError:
+    from process_runner import run_bounded
 
 
 def is_wsl() -> bool:
@@ -21,13 +26,14 @@ def wsl_gateway() -> str | None:
     if not is_wsl():
         return None
     try:
-        result = subprocess.run(
-            ["ip", "route", "show", "default"], capture_output=True,
-            text=True, timeout=5, shell=False,
+        result = run_bounded(
+            ["ip", "route", "show", "default"],
+            cwd=Path.cwd(),
+            timeout=5,
         )
         parts = result.stdout.split()
         return parts[parts.index("via") + 1] if result.returncode == 0 and "via" in parts else None
-    except (OSError, subprocess.SubprocessError, ValueError):
+    except (OSError, SubprocessError, ValueError):
         return None
 
 
@@ -75,13 +81,14 @@ def codex_executable() -> str | None:
             return found
     if is_wsl() and shutil.which("powershell.exe"):
         try:
-            result = subprocess.run(
+            result = run_bounded(
                 ["powershell.exe", "-NoProfile", "-Command", "(Get-Command codex -ErrorAction SilentlyContinue).Source"],
-                capture_output=True, text=True, timeout=8, shell=False,
+                cwd=Path.cwd(),
+                timeout=8,
             )
             value = result.stdout.strip().replace("\\", "/")
             if result.returncode == 0 and value:
                 return value
-        except (OSError, subprocess.SubprocessError):
+        except (OSError, SubprocessError):
             pass
     return None

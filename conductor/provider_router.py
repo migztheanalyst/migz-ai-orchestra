@@ -1,9 +1,13 @@
 import json
 import os
-import subprocess
 import time
 import urllib.request
 from dataclasses import dataclass
+
+try:
+    from .process_runner import run_bounded
+except ImportError:
+    from process_runner import run_bounded
 
 
 @dataclass(frozen=True)
@@ -46,9 +50,11 @@ def _post_json_bounded(url, payload, timeout):
         "-H", "Content-Type: application/json",
         "--data-binary", "@-", url,
     ]
-    result = subprocess.run(
-        command, input=json.dumps(payload), capture_output=True, text=True,
-        timeout=float(timeout) + 5, shell=False,
+    result = run_bounded(
+        command,
+        cwd=".",
+        timeout=float(timeout) + 5,
+        input_text=json.dumps(payload),
     )
     if result.returncode != 0:
         raise TimeoutError(result.stderr.strip() or f"curl exit {result.returncode}")
@@ -182,7 +188,11 @@ def classify_backend_failure(error_text):
         return "SECURITY_BLOCKER"
     if any(x in text for x in ("api key", "authentication", "unauthorized", "401", "credential", "billing")):
         return "EXTERNAL_CREDENTIAL"
-    if any(x in text for x in ("truncated", "done_reason.*length", "output length")):
+    if (
+        "truncated" in text
+        or "output length" in text
+        or ("done_reason" in text and "length" in text)
+    ):
         return "OUTPUT_TRUNCATED"
     if any(x in text for x in ("malformed", "invalid json", "invalid schema", "json decode", "unexpected probe response")):
         return "MALFORMED_OUTPUT"

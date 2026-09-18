@@ -70,6 +70,16 @@ class ProjectSchedulerTests(unittest.TestCase):
         retried = self.scheduler.retry("p3", task["id"])
         self.assertEqual(retried["status"], "pending")
 
+    def test_recover_stale_blocks_exhausted_task(self):
+        task = self.scheduler.enqueue(
+            "p0", "Exhausted", "Do once", lane="remote", max_attempts=1
+        )
+        self.scheduler.claim("p0", task["id"])
+        recovered = self.scheduler.recover_stale()
+        self.assertEqual(recovered[0]["status"], "blocked")
+        stored = self.scheduler._load_queue("p0")[0]
+        self.assertEqual(stored["status"], "blocked")
+
     def test_summary(self):
         self.scheduler.enqueue("p4", "S", "Summary", lane="remote")
         summary = self.scheduler.summary()

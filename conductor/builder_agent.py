@@ -1,12 +1,12 @@
 import json
 import os
-import subprocess
 import sys
 import urllib.request
 from pathlib import Path, PurePosixPath
 
 from model_router import route_model
 from provider_router import ollama_models
+from runtime_env import resolve_ollama_base
 from safe_writer import safe_write
 
 EXCLUDED_DIRS = {
@@ -30,20 +30,6 @@ BLOCKED_NAMES = {
 MAX_CONTEXT_CHARS = 16000
 MAX_FILE_BYTES = 30000
 MAX_WRITES = 8
-
-
-def gateway():
-    result = subprocess.check_output(
-        ["ip", "route", "show", "default"],
-        text=True,
-    )
-
-    parts = result.split()
-
-    if "via" not in parts:
-        raise RuntimeError("Windows gateway not found")
-
-    return parts[parts.index("via") + 1]
 
 
 def validate_write_path(relative_path):
@@ -122,10 +108,7 @@ def collect_context(workspace):
 
 
 def ask_builder(workspace, objective):
-    endpoint = os.environ.get(
-        "OLLAMA_BASE_URL",
-        f"http://{gateway()}:11434",
-    )
+    endpoint = resolve_ollama_base()
 
     model = os.environ.get("MIGZ_MODEL") or route_model("coding", ollama_models(endpoint))
 

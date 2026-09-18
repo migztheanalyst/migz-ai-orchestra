@@ -8,7 +8,7 @@ probe or a recorded successful canary.
 
 import json
 import os
-import subprocess
+from subprocess import TimeoutExpired
 import tempfile
 import time
 from dataclasses import asdict, dataclass
@@ -17,6 +17,7 @@ from pathlib import Path
 
 from model_router import model_candidates
 from provider_router import detect_lanes, ollama_models
+from process_runner import run_bounded
 from runtime_env import executable_path, resolve_ollama_base
 
 
@@ -395,9 +396,11 @@ class AgentBackendRouter:
         try:
             with tempfile.TemporaryDirectory(prefix="migz-hermes-canary-") as scratch:
                 command = self._hermes_command(prompt, scratch)
-                result = subprocess.run(
-                    command, capture_output=True, text=True, timeout=timeout,
-                    env=env, cwd=scratch, shell=False,
+                result = run_bounded(
+                    command,
+                    cwd=scratch,
+                    timeout=timeout,
+                    env=env,
                 )
             text = (result.stdout + "\n" + result.stderr).strip()
             ok = result.returncode == 0 and "HERMES_OK" in result.stdout
@@ -423,7 +426,7 @@ class AgentBackendRouter:
                 "response_exact": ok,
                 "reason": evidence["reason"],
             }
-        except subprocess.TimeoutExpired:
+        except TimeoutExpired:
             elapsed = round(time.monotonic() - started, 3)
             self._write_hermes_probe({
                 "schema": "migz.core.hermes-probe.v1", "state": "DEGRADED_OPTIONAL",
@@ -444,9 +447,11 @@ class AgentBackendRouter:
         env.update({"HERMES_SAFE_MODE": "1", "NO_COLOR": "1"})
         started = time.monotonic()
         with tempfile.TemporaryDirectory(prefix="migz-hermes-advisory-") as scratch:
-            result = subprocess.run(
-                self._hermes_command(prompt, scratch), capture_output=True, text=True,
-                timeout=timeout, env=env, cwd=scratch, shell=False,
+            result = run_bounded(
+                self._hermes_command(prompt, scratch),
+                cwd=scratch,
+                timeout=timeout,
+                env=env,
             )
         response = result.stdout.strip()
         if result.returncode != 0 or not response:
@@ -472,7 +477,7 @@ class AgentBackendRouter:
         try:
             with tempfile.TemporaryDirectory(prefix="migz-openhands-canary-") as scratch:
                 command = [self.openhands_executable, "--headless", "--json", "--override-with-envs", "--exit-without-confirmation", "-t", prompt]
-                result = subprocess.run(command, capture_output=True, text=True, timeout=timeout, env=env, cwd=scratch, shell=False)
+                result = run_bounded(command, cwd=scratch, timeout=timeout, env=env)
                 residual = [item.name for item in Path(scratch).iterdir()]
             text = (result.stdout + "\n" + result.stderr).strip()
             ok = result.returncode == 0 and "OPENHANDS_OK" in text and not residual
@@ -489,7 +494,7 @@ class AgentBackendRouter:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
             return {"status": HEALTHY if ok else UNAVAILABLE, "elapsed_seconds": elapsed, "workspace_clean": not residual, "returncode": result.returncode, "reason": payload["reason"]}
-        except subprocess.TimeoutExpired:
+        except TimeoutExpired:
             return {"status": UNAVAILABLE, "elapsed_seconds": round(time.monotonic() - started, 3), "reason": "bounded timeout"}
         except Exception as exc:
             return {"status": UNAVAILABLE, "elapsed_seconds": round(time.monotonic() - started, 3), "reason": f"{type(exc).__name__}: {exc}"}

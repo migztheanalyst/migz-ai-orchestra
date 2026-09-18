@@ -102,6 +102,20 @@ class ProjectScheduler:
             self._save_queue(project_id, queue)
         return dict(task)
 
+    def remove_pending(self, project_id, task_id):
+        """Remove an unclaimed pending project task for coordinated rollback."""
+        with self._locked():
+            queue = self._load_queue(project_id)
+            for index, task in enumerate(queue):
+                if task.get("id") != task_id:
+                    continue
+                if task.get("status") != "pending":
+                    raise ValueError("Only a pending project task can be removed")
+                removed = queue.pop(index)
+                self._save_queue(project_id, queue)
+                return dict(removed)
+        raise FileNotFoundError("Project task not found")
+
     def all_tasks(self):
         rows = []
         for project in self.registry.list_projects():
@@ -146,12 +160,15 @@ class ProjectScheduler:
                 continue
             allowed = {
                 "running": {"pending"}, "review": {"running"},
-                "passed": {"running", "review"}, "blocked": {"running", "review"},
+                "passed": {"running", "review"}, "blocked": {"pending", "running", "review"},
             }
             if task.get("status") not in allowed.get(new_status, set()):
                 raise ValueError(f"Invalid project task transition to {new_status}")
-            if new_status == "running" and task.get("lane") == "local-heavy" and self._heavy_busy():
-                raise RuntimeError("Heavy local lane is already busy")
+            if new_status == "running":
+                if int(task.get("attempts", 0)) >= int(task.get("max_attempts", 3)):
+                    raise RuntimeError("Maximum project task attempts reached")
+                if task.get("lane") == "local-heavy" and self._heavy_busy():
+                    raise RuntimeError("Heavy local lane is already busy")
             task["status"] = new_status
             task["updated_at"] = utc_now()
             if new_status == "running":
@@ -209,9 +226,14 @@ class ProjectScheduler:
                 changed = False
                 for task in queue:
                     if task.get("status") in ACTIVE and task.get("id") not in active_ids:
-                        task["status"] = "pending"
+                        exhausted = int(task.get("attempts", 0)) >= int(task.get("max_attempts", 3))
+                        task["status"] = "blocked" if exhausted else "pending"
                         task["updated_at"] = utc_now()
-                        task["recovery_note"] = "active task returned to pending after restart"
+                        if exhausted:
+                            task["finished_at"] = utc_now()
+                            task["recovery_note"] = "stale task blocked because maximum attempts were reached"
+                        else:
+                            task["recovery_note"] = "active task returned to pending after restart"
                         recovered.append(dict(task))
                         changed = True
                 if changed:

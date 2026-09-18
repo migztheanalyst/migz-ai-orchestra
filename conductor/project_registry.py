@@ -2,9 +2,13 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import tempfile
 from pathlib import Path
+
+try:
+    from .process_runner import run_bounded
+except ImportError:
+    from process_runner import run_bounded
 
 
 PROJECT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,63}$")
@@ -21,9 +25,10 @@ def is_git_root(path):
     root = Path(path)
     if not root.is_dir():
         return False
-    result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"], cwd=root,
-        capture_output=True, text=True, timeout=20, shell=False,
+    result = run_bounded(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=root,
+        timeout=20,
     )
     if result.returncode != 0:
         return False

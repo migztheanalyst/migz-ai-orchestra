@@ -1,8 +1,12 @@
 import json
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+try:
+    from .process_runner import run_bounded
+except ImportError:
+    from process_runner import run_bounded
 
 
 TESTS = [
@@ -38,13 +42,10 @@ TESTS = [
 
 
 def run_test(root, command):
-    result = subprocess.run(
+    result = run_bounded(
         command,
         cwd=root,
-        capture_output=True,
-        text=True,
         timeout=300,
-        shell=False,
     )
 
     return {

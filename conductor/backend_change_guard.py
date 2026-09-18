@@ -2,9 +2,13 @@
 
 import json
 import re
-import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
+
+try:
+    from .process_runner import run_bounded
+except ImportError:
+    from process_runner import run_bounded
 
 
 MAX_FILES = 16
@@ -26,9 +30,10 @@ class ChangeGuardResult:
 
 
 def _git(root, *args):
-    result = subprocess.run(
-        ["git", *args], cwd=root, capture_output=True, text=True,
-        timeout=120, shell=False,
+    result = run_bounded(
+        ["git", *args],
+        cwd=root,
+        timeout=120,
     )
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "git command failed")
