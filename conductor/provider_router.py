@@ -118,7 +118,15 @@ def detect_lanes(
             lanes[key] = ProviderLane(lane.name, "AVAILABLE", lane.provider, lane.model, lane.base_url, "installed; extended live probe not requested")
             continue
         if should_probe:
-            lane_timeout = max(timeout, 150) if key == "qwen-coding" else max(timeout, 120) if key == "qwen-reasoning" else timeout
+            if key == "qwen-coding":
+                lane_timeout = max(timeout, 150)
+            elif key in {"qwen-fast", "qwen-reasoning"}:
+                # Cold model loads and model swaps can exceed the generic
+                # probe budget even when Ollama is healthy. Keep the live
+                # gate bounded while giving core lanes enough startup room.
+                lane_timeout = max(timeout, 120)
+            else:
+                lane_timeout = timeout
             result = probe_model(
                 ollama_base, lane.model, timeout=lane_timeout,
                 disable_reasoning=(key == "qwen-reasoning"),

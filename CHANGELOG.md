@@ -17,6 +17,7 @@ All notable public changes are documented here.
 - project-scoped scheduling and the global TaskStore now reconcile fail-closed across enqueue, claim, recovery, and Maestro exit paths
 - Backend Change Guard must pass before evidence can reach READY_TO_COMMIT
 - Ollama endpoint resolution now works across configured endpoints, localhost, and WSL without assuming WSL-only networking
+- qwen-fast live health probes use a bounded 120-second cold-start/model-swap budget to avoid false negatives on constrained local runtimes
 - runtime subprocess usage is centralized behind the bounded process runner
 - retry logic may safely reuse an old task branch only when it contains no commits unique from the current source branch
 
