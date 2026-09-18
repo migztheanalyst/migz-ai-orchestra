@@ -196,10 +196,54 @@ def run_next(repo):
     store = TaskStore(tasks)
     try:
         _, latest = store.find(task["id"])
-        passed = latest.get("status") == "passed"
-    except Exception:
-        passed = False
-    scheduler.finish(task["project_id"], task["id"], passed=passed)
+    except Exception as exc:
+        # Fail the project-scoped task closed even if the global record was
+        # unexpectedly lost. There is no safe state to infer or recreate.
+        try:
+            scheduler.finish(task["project_id"], task["id"], passed=False)
+        except Exception as sync_exc:
+            raise RuntimeError(
+                f"Project task {task['id']} lost its global TaskStore record "
+                "and could not be blocked in ProjectScheduler"
+            ) from sync_exc
+        raise RuntimeError(
+            f"Project task {task['id']} lost its global TaskStore record"
+        ) from exc
+
+    status = latest.get("status")
+    passed = status == "passed"
+    blocked_here = False
+    if not passed and status in {"pending", "running", "review"}:
+        store.transition(
+            task["id"],
+            "blocked",
+            f"maestro exited with code {result.returncode} before reaching a terminal global state",
+        )
+        blocked_here = True
+    elif not passed and status != "blocked":
+        raise RuntimeError(
+            f"Project task {task['id']} ended in unexpected global state: {status}"
+        )
+
+    try:
+        scheduler.finish(task["project_id"], task["id"], passed=passed)
+    except Exception as exc:
+        if blocked_here:
+            try:
+                store.transition(
+                    task["id"],
+                    "pending",
+                    "rolled back run-next block after scheduler synchronization failure",
+                )
+            except Exception as rollback_exc:
+                raise RuntimeError(
+                    f"Could not synchronize project task {task['id']} and "
+                    "global rollback also failed"
+                ) from rollback_exc
+        raise RuntimeError(
+            f"Could not synchronize project task {task['id']} after Maestro exit"
+        ) from exc
+
     return result.returncode if passed else (result.returncode or 1)
 
 

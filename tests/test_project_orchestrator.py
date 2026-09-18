@@ -8,7 +8,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "conductor"))
 
-from project_orchestrator import enqueue, enqueue_batch, recover
+from project_orchestrator import enqueue, enqueue_batch, recover, run_next
 from project_registry import ProjectRegistry
 from project_scheduler import ProjectScheduler
 from task_engine import TaskStore
@@ -148,6 +148,59 @@ class ProjectOrchestratorTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Could not synchronize"):
                 recover(self.root)
 
+        self.assertEqual(self.store().find(task["id"])[1]["status"], "pending")
+        self.assertEqual(self.scheduler()._load_queue("p1")[0]["status"], "pending")
+
+    def test_run_next_blocks_both_stores_if_maestro_crashes_before_global_claim(self):
+        task = enqueue(self.root, "p1", "Crash", "Crash before global claim")
+        completed = subprocess.CompletedProcess(["maestro"], 7, "", "boom")
+        with mock.patch("project_orchestrator.run_bounded", return_value=completed):
+            code = run_next(self.root)
+
+        self.assertEqual(code, 7)
+        self.assertEqual(self.store().find(task["id"])[1]["status"], "blocked")
+        self.assertEqual(self.scheduler()._load_queue("p1")[0]["status"], "blocked")
+
+    def test_run_next_treats_zero_exit_without_global_pass_as_failure(self):
+        task = enqueue(self.root, "p1", "False success", "Exit zero too early")
+        completed = subprocess.CompletedProcess(["maestro"], 0, "", "")
+        with mock.patch("project_orchestrator.run_bounded", return_value=completed):
+            code = run_next(self.root)
+
+        self.assertEqual(code, 1)
+        self.assertEqual(self.store().find(task["id"])[1]["status"], "blocked")
+        self.assertEqual(self.scheduler()._load_queue("p1")[0]["status"], "blocked")
+
+    def test_run_next_passes_project_store_only_after_global_pass(self):
+        task = enqueue(self.root, "p1", "Success", "Reach global pass")
+
+        def complete_global(*args, **kwargs):
+            store = self.store()
+            store.transition(task["id"], "running")
+            store.transition(task["id"], "review")
+            store.transition(task["id"], "passed")
+            return subprocess.CompletedProcess(["maestro"], 0, "", "")
+
+        with mock.patch("project_orchestrator.run_bounded", side_effect=complete_global):
+            code = run_next(self.root)
+
+        self.assertEqual(code, 0)
+        self.assertEqual(self.store().find(task["id"])[1]["status"], "passed")
+        self.assertEqual(self.scheduler()._load_queue("p1")[0]["status"], "passed")
+
+    def test_run_next_rolls_global_block_back_if_scheduler_sync_fails(self):
+        task = enqueue(self.root, "p1", "Sync fail", "Rollback global block")
+        completed = subprocess.CompletedProcess(["maestro"], 9, "", "boom")
+        with mock.patch("project_orchestrator.run_bounded", return_value=completed), \
+             mock.patch.object(ProjectScheduler, "finish", side_effect=RuntimeError("sync failed")):
+            with self.assertRaisesRegex(RuntimeError, "Could not synchronize"):
+                run_next(self.root)
+
+        self.assertEqual(self.store().find(task["id"])[1]["status"], "pending")
+        self.assertEqual(self.scheduler()._load_queue("p1")[0]["status"], "running")
+
+        with mock.patch("project_orchestrator.recover_stale_worktrees", return_value=[]):
+            recover(self.root)
         self.assertEqual(self.store().find(task["id"])[1]["status"], "pending")
         self.assertEqual(self.scheduler()._load_queue("p1")[0]["status"], "pending")
 
