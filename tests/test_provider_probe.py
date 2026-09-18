@@ -68,10 +68,22 @@ class ProviderProbeTests(unittest.TestCase):
             )
         probe.assert_called_once()
         self.assertEqual(probe.call_args.args[1], "qwen2.5-coder:3b")
+        self.assertEqual(probe.call_args.kwargs["timeout"], 120)
         self.assertEqual(release.call_count, 1)
         self.assertEqual(lanes["qwen-fast"].status, "PASS")
         self.assertEqual(lanes["qwen-coding"].status, "AVAILABLE")
         self.assertEqual(lanes["qwen-reasoning"].status, "AVAILABLE")
+
+    def test_fast_probe_keeps_longer_explicit_timeout(self):
+        models = {"qwen2.5-coder:3b"}
+        live = {"status": "PASS", "elapsed_seconds": 0.1, "reason": "ok"}
+        with patch.object(provider_router, "ollama_models", return_value=models), \
+             patch.object(provider_router, "probe_model", return_value=live) as probe:
+            provider_router.detect_lanes(
+                "http://ollama:11434", probe=True, timeout=180,
+                probe_names={"qwen-fast"},
+            )
+        self.assertEqual(probe.call_args.kwargs["timeout"], 180)
 
     def test_missing_optional_local_deepseek_does_not_create_hosted_lane(self):
         models = {"qwen2.5-coder:3b", "qwen2.5-coder:7b", "qwen3.5:4b"}
