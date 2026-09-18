@@ -60,8 +60,8 @@ class DecisionLayerTests(unittest.TestCase):
         task.update(overrides)
         return task
 
-    def test_v3_identity(self):
-        self.assertEqual(ORCHESTRA_VERSION, "4.0.0")
+    def test_v4_identity(self):
+        self.assertEqual(ORCHESTRA_VERSION, "4.1.0")
 
     def test_no_key_uses_fail_safe_fallback(self):
         with mock.patch.dict(os.environ, {}, clear=True):

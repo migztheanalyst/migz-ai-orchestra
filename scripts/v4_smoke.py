@@ -25,7 +25,7 @@ def main():
     results = {}
     def identity():
         assert ORCHESTRA_NAME == "MIGZ AI ORCHESTRA"
-        assert ORCHESTRA_VERSION == "4.0.0"
+        assert ORCHESTRA_VERSION == "4.1.0"
         assert ORCHESTRA_CODENAME == "OPEN ORCHESTRA"
 
     def fallback():
@@ -47,14 +47,14 @@ def main():
         env.pop("TYPESAFE_API_KEY", None)
         proc = subprocess.run(["python3", "conductor/orchestra.py", str(ROOT), "status"], cwd=ROOT, env=env, capture_output=True, text=True, timeout=30)
         assert proc.returncode == 0, proc.stderr
-        assert "MIGZ AI ORCHESTRA V4.0.0 STATUS" in proc.stdout
+        assert "MIGZ AI ORCHESTRA V4.1.0 STATUS" in proc.stdout
         expected = DecisionLayer(mode="shadow").status(ROOT)["status"]
         assert f"JEV      : {expected}" in proc.stdout
 
     def doctor_v4():
         report = doctor(ROOT, probe=False)
         assert report["schema"] == "migz.orchestra.doctor.v4"
-        assert report["identity"]["version"] == "4.0.0"
+        assert report["identity"]["version"] == "4.1.0"
         assert report["providers"]["jev_optional"]["model"] == "jev-latest"
         authority = report["control"]["authority"]
         assert authority["recommended_brain"] == "codex"
