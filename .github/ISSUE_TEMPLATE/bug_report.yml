@@ -10,7 +10,7 @@ body:
     id: version
     attributes:
       label: Orchestra version / commit
-      placeholder: v4.0.0 or git SHA
+      placeholder: v4.1.0 or git SHA
     validations:
       required: true
   - type: dropdown

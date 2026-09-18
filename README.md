@@ -3,7 +3,7 @@
 **Local-first, evidence-driven multi-agent orchestration for software delivery.**
 
 [![CI](https://github.com/migztheanalyst/migz-ai-orchestra/actions/workflows/ci.yml/badge.svg)](https://github.com/migztheanalyst/migz-ai-orchestra/actions/workflows/ci.yml)
-![Version](https://img.shields.io/badge/version-4.0.0-111827)
+![Version](https://img.shields.io/badge/version-4.1.0-111827)
 ![Python](https://img.shields.io/badge/python-3.11%2B-3776AB)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Local First](https://img.shields.io/badge/runtime-local--first-7C3AED)
