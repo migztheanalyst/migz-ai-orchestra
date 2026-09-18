@@ -1,9 +1,13 @@
 import os
 import shlex
-import subprocess
 import sys
 import re
 from pathlib import Path
+
+try:
+    from .process_runner import run_bounded
+except ImportError:
+    from process_runner import run_bounded
 
 TIMEOUT = 300
 SECRET_RE = re.compile(r"(?i)(api[_-]?key|token|password|secret)\s*[:=]\s*[^\s,;]+")
@@ -68,14 +72,12 @@ def run_safe(workspace, command_text):
         "CI": "true",
     }
 
-    result = subprocess.run(
+    result = run_bounded(
         parts,
         cwd=root,
-        capture_output=True,
-        text=True,
         timeout=TIMEOUT,
         env=safe_env,
-        shell=False,
+        merge_env=False,
     )
 
     print("=== MIGZ SAFE EXECUTOR ===")

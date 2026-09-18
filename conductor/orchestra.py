@@ -1,5 +1,4 @@
 import json
-import subprocess
 import sys
 from pathlib import Path
 
@@ -9,10 +8,11 @@ from project_scheduler import ProjectScheduler
 from project_orchestrator import run_next as run_project_next
 from decision_layer import DecisionLayer
 from version import ORCHESTRA_NAME, ORCHESTRA_VERSION, ORCHESTRA_CODENAME
+from process_runner import run_bounded
 
 
 def run_maestro(repo, task_id):
-    result = subprocess.run(
+    result = run_bounded(
         [
             "python3",
             "conductor/maestro.py",
@@ -20,9 +20,8 @@ def run_maestro(repo, task_id):
             task_id,
         ],
         cwd=repo,
-        text=True,
         timeout=3600,
-        shell=False,
+        capture_output=False,
     )
 
     return result.returncode

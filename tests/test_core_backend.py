@@ -62,6 +62,8 @@ class BackendRouterTests(unittest.TestCase):
             "bounded backend timeout": "MODEL_TIMEOUT",
             "unexpected malformed json": "MALFORMED_OUTPUT",
             "output truncated at context limit": "OUTPUT_TRUNCATED",
+            "done_reason=length": "OUTPUT_TRUNCATED",
+            '{"done_reason": "length"}': "OUTPUT_TRUNCATED",
             "provider unavailable": "TRANSIENT_PROVIDER",
             "no model installed": "MODEL_UNAVAILABLE",
             "security blocker": "SECURITY_BLOCKER",

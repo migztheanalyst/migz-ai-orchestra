@@ -1,38 +1,22 @@
 import json
 import os
-import subprocess
 import sys
 import urllib.request
 from pathlib import Path
 
 from model_router import route_model
+from process_runner import run_bounded
 from provider_router import ollama_models
+from runtime_env import resolve_ollama_base
 
 MAX_EVIDENCE = 30000
 
 
-def gateway():
-    result = subprocess.check_output(
-        ["ip", "route", "show", "default"],
-        text=True,
-    )
-
-    parts = result.split()
-
-    if "via" not in parts:
-        raise RuntimeError("Windows gateway not found")
-
-    return parts[parts.index("via") + 1]
-
-
 def run_git(root, *args):
-    result = subprocess.run(
+    result = run_bounded(
         ["git", *args],
         cwd=root,
-        capture_output=True,
-        text=True,
         timeout=60,
-        shell=False,
     )
 
     return result.stdout + result.stderr
@@ -155,10 +139,7 @@ def hard_scope_blockers(root):
 
 
 def call_reviewer(evidence):
-    endpoint = os.environ.get(
-        "OLLAMA_BASE_URL",
-        f"http://{gateway()}:11434",
-    )
+    endpoint = resolve_ollama_base()
     model = os.environ.get("MIGZ_REVIEW_MODEL") or os.environ.get("MIGZ_MODEL") or route_model("review", ollama_models(endpoint))
 
     schema = {

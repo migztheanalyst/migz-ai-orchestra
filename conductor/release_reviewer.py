@@ -3,15 +3,20 @@
 import argparse
 import ast
 import json
-import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
+try:
+    from .process_runner import run_bounded
+except ImportError:
+    from process_runner import run_bounded
+
 
 def run(root, *args, timeout=900):
-    result = subprocess.run(
-        [str(arg) for arg in args], cwd=root, capture_output=True,
-        text=True, timeout=timeout, shell=False,
+    result = run_bounded(
+        [str(arg) for arg in args],
+        cwd=root,
+        timeout=timeout,
     )
     return result.returncode, result.stdout + result.stderr
 

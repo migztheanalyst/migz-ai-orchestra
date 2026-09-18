@@ -1,11 +1,11 @@
 import json
 import os
-import subprocess
 import sys
 import urllib.request
 from pathlib import Path
 
 from model_router import route_model
+from runtime_env import resolve_ollama_base
 
 EXCLUDED_DIRS = {
     ".git",
@@ -27,20 +27,6 @@ ALLOWED_SUFFIXES = {
 MAX_FILES = 20
 MAX_FILE_BYTES = 30_000
 MAX_TOTAL_CHARS = 18_000
-
-
-def get_windows_gateway():
-    result = subprocess.check_output(
-        ["ip", "route", "show", "default"],
-        text=True
-    ).strip()
-
-    parts = result.split()
-
-    if "via" not in parts:
-        raise RuntimeError("Could not detect Windows gateway")
-
-    return parts[parts.index("via") + 1]
 
 
 def collect_project_context(workspace):
@@ -114,12 +100,7 @@ def collect_project_context(workspace):
 
 
 def call_model(prompt):
-    gateway = get_windows_gateway()
-
-    base_url = os.environ.get(
-        "OLLAMA_BASE_URL",
-        f"http://{gateway}:11434"
-    )
+    base_url = resolve_ollama_base()
 
     model = route_model("reasoning")
 

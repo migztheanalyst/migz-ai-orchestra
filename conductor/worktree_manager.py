@@ -1,19 +1,20 @@
 import argparse
 import json
 import os
-import subprocess
 import uuid
 from pathlib import Path
 
+try:
+    from .process_runner import run_bounded
+except ImportError:
+    from process_runner import run_bounded
+
 
 def run_git(repo, *args, check=True):
-    result = subprocess.run(
+    result = run_bounded(
         ["git", *args],
         cwd=repo,
-        capture_output=True,
-        text=True,
         timeout=120,
-        shell=False,
     )
 
     if check and result.returncode != 0:
@@ -30,6 +31,20 @@ def validate_task_id(task_id):
         uuid.UUID(task_id)
     except Exception:
         raise ValueError("Invalid task ID")
+
+
+def branch_has_unique_commits(repo, branch, source="HEAD"):
+    """Return True only when branch is not fully contained in source."""
+    result = run_git(
+        repo, "merge-base", "--is-ancestor", branch, source, check=False
+    )
+    if result.returncode == 0:
+        return False
+    if result.returncode == 1:
+        return True
+    raise RuntimeError(
+        result.stderr.strip() or result.stdout.strip() or "Could not compare task branch"
+    )
 
 
 def validate_repo(repo):
@@ -140,9 +155,13 @@ def create_worktree(
                 "Task branch already exists and is attached"
             )
 
+        if branch_has_unique_commits(repo, branch, "HEAD"):
+            raise RuntimeError(
+                "Task branch contains preserved commits and cannot be reset automatically"
+            )
+
         # A bounded retry may inherit an unattached branch from a failed
-        # attempt.  Evidence for that attempt is stored separately; reset
-        # only this UUID-scoped task branch to the current clean source head.
+        # attempt only when that branch has no commits unique to the current source history.
         run_git(
             repo,
             "branch",
@@ -215,6 +234,93 @@ def remove_worktree(
         "workspace": str(target),
         "status": "REMOVED",
     }
+
+
+def _porcelain_worktrees(repo):
+    text = run_git(repo, "worktree", "list", "--porcelain").stdout
+    entries = []
+    current = {}
+    for line in text.splitlines() + [""]:
+        if not line:
+            if current:
+                entries.append(current)
+                current = {}
+            continue
+        key, _, value = line.partition(" ")
+        if key in {"worktree", "HEAD", "branch"}:
+            current[key] = value.strip()
+        else:
+            current[key] = True
+    return entries
+
+
+def managed_worktrees(repo, root=None):
+    """Inspect only UUID-scoped task worktrees under the managed root."""
+    repo = validate_repo(repo)
+    worktree_root = (
+        Path(root).expanduser().resolve()
+        if root
+        else default_worktree_root(repo).resolve()
+    )
+    rows = []
+    source_head = run_git(repo, "rev-parse", "HEAD").stdout.strip()
+    for entry in _porcelain_worktrees(repo):
+        raw_path = entry.get("worktree")
+        if not raw_path:
+            continue
+        path = Path(raw_path).expanduser().resolve()
+        if path.parent != worktree_root:
+            continue
+        task_id = path.name
+        try:
+            validate_task_id(task_id)
+        except ValueError:
+            continue
+        expected_branch = f"refs/heads/task/{task_id}"
+        if entry.get("branch") != expected_branch:
+            continue
+        exists = path.exists()
+        dirty = None
+        if exists:
+            dirty = bool(run_git(path, "status", "--porcelain").stdout.strip())
+        branch_ref = f"task/{task_id}"
+        branch_head = run_git(repo, "rev-parse", branch_ref).stdout.strip()
+        unique_commits = branch_has_unique_commits(repo, branch_ref, "HEAD")
+        rows.append({
+            "task_id": task_id,
+            "workspace": str(path),
+            "branch": expected_branch,
+            "exists": exists,
+            "dirty": dirty,
+            "source_head": source_head,
+            "branch_head": branch_head,
+            "diverged": branch_head != source_head,
+            "unique_commits": unique_commits,
+        })
+    return rows
+
+
+def recover_stale_worktrees(repo, active_task_ids=None, root=None):
+    """Remove only clean stale task worktrees; preserve dirty work for review."""
+    active = {str(item) for item in (active_task_ids or [])}
+    actions = []
+    for item in managed_worktrees(repo, root=root):
+        task_id = item["task_id"]
+        if task_id in active:
+            actions.append({**item, "action": "PRESERVED_ACTIVE"})
+            continue
+        if not item["exists"]:
+            actions.append({**item, "action": "BLOCKED_MISSING_METADATA"})
+            continue
+        if item["dirty"]:
+            actions.append({**item, "action": "BLOCKED_DIRTY"})
+            continue
+        if item["unique_commits"]:
+            actions.append({**item, "action": "BLOCKED_COMMITTED"})
+            continue
+        remove_worktree(repo, task_id, root=root, force=False)
+        actions.append({**item, "action": "REMOVED_CLEAN"})
+    return actions
 
 
 def main():

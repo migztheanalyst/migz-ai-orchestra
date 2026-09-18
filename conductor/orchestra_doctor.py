@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import subprocess
 from pathlib import Path
 
 from agent_backend_router import AgentBackendRouter
@@ -11,13 +10,13 @@ from health_check import diagnose_ollama
 from project_scheduler import ProjectScheduler
 from runtime_env import codex_executable, optional_path
 from task_engine import TaskStore
+from process_runner import run_bounded
 from version import ORCHESTRA_CODENAME, ORCHESTRA_NAME, ORCHESTRA_VERSION
 
 
 def _git(repo, *args):
-    result = subprocess.run(
-        ["git", *args], cwd=repo, capture_output=True, text=True,
-        timeout=30, shell=False,
+    result = run_bounded(
+        ["git", *args], cwd=repo, timeout=30,
     )
     return result.returncode, result.stdout.strip(), result.stderr.strip()
 
