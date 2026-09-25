@@ -14,6 +14,22 @@ It is **not** another chat UI and it is **not** a wrapper that blindly lets agen
 
 The core runs locally with Ollama. Cloud authority and decision layers are optional.
 
+## Project status and transparency
+
+MIGZ AI Orchestra became a public open-source project in September 2026. It is actively maintained and technically mature enough to expose its control plane, tests, safety model, and release gates for public review, while public ecosystem adoption is still early.
+
+The project does **not** inflate stars, downloads, dependents, contributor counts, or benchmark claims. Current adoption and maturity are documented in [docs/adoption.md](docs/adoption.md).
+
+For reviewers and contributors:
+
+- [Governance](GOVERNANCE.md)
+- [Maintainers](MAINTAINERS.md)
+- [Reproducibility](docs/reproducibility.md)
+- [Benchmarking and claims policy](docs/benchmarking.md)
+- [Security model](docs/security-model.md)
+- [Security disclosure policy](SECURITY.md)
+- [Citation metadata](CITATION.cff)
+
 ## Why Orchestra?
 
 Most agent stacks optimize for *getting an answer*. Orchestra optimizes for *shipping a change you can inspect, test, reproduce, and reject safely*.
@@ -162,7 +178,7 @@ No agent self-report is treated as proof. See [docs/security-model.md](docs/secu
 conductor/   orchestration, routing, safety, scheduling, review
 scripts/     setup, smoke, stress and canary utilities
 tests/       deterministic regression suite
-docs/        architecture, security and integration guides
+docs/        architecture, security, reproducibility, benchmarking and integration guides
 .github/     CI, security and contribution workflows
 examples/    copy-paste task examples
 ```
@@ -176,7 +192,11 @@ Contributions are welcome from anywhere in the world — especially new backends
 Start with:
 
 - [CONTRIBUTING.md](CONTRIBUTING.md)
+- [GOVERNANCE.md](GOVERNANCE.md)
+- [MAINTAINERS.md](MAINTAINERS.md)
 - [docs/adding-a-backend.md](docs/adding-a-backend.md)
+- [docs/reproducibility.md](docs/reproducibility.md)
+- [docs/benchmarking.md](docs/benchmarking.md)
 - [ROADMAP.md](ROADMAP.md)
 - GitHub issue templates for bugs, features and new integrations
 
