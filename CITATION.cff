@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use MIGZ AI Orchestra in research, tooling, or reproducible engineering work, please cite this software."
+title: "MIGZ AI Orchestra"
+type: software
+authors:
+  - family-names: "Magdy"
+    given-names: "Ahmed"
+    alias: "Migz The Analyst"
+repository-code: "https://github.com/migztheanalyst/migz-ai-orchestra"
+url: "https://github.com/migztheanalyst/migz-ai-orchestra"
+license: MIT
+version: "4.1.0"
+date-released: "2026-09-18"
+keywords:
+  - agentic-ai
+  - ai-coding
+  - multi-agent
+  - local-llm
+  - reproducible-software-delivery
+  - developer-tools

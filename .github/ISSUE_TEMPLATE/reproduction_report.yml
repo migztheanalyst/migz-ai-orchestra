@@ -1,0 +1,56 @@
+name: Reproduction report
+description: Report an independent reproduction of Orchestra tests, canaries, or documented behavior
+title: "[Reproduction]: "
+labels:
+  - reproducibility
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for independently reproducing Orchestra behavior. Please avoid secrets, private source code, or machine-specific credentials.
+  - type: input
+    id: commit
+    attributes:
+      label: Commit SHA or release
+      placeholder: e.g. 4f9608f or v4.1.0
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, and relevant runtime versions
+      placeholder: Windows 11, Python 3.12, Ollama 0.x
+    validations:
+      required: true
+  - type: textarea
+    id: commands
+    attributes:
+      label: Commands executed
+      render: shell
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - Reproduced as documented
+        - Partially reproduced
+        - Could not reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: observations
+    attributes:
+      label: Observations
+      description: Include output or differences needed to understand the result.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I have removed credentials, private source, personal paths, and sensitive data.
+          required: true

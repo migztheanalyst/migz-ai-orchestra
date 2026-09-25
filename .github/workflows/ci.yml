@@ -33,6 +33,8 @@ jobs:
         run: python scripts/check_docs_links.py
       - name: Entrypoint smoke
         run: python scripts/core_entrypoint_smoke.py
+      - name: V4 smoke
+        run: python scripts/v4_smoke.py
       - name: Diff hygiene
         run: git diff --check
 
